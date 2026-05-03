@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from injection.base_injector import Injector
+from .base_injector import Injector
 
 
 class GraftedModule(nn.Module):

@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from topology.lattice import Lattice
+from ..topology.lattice import Lattice
 
 
 class Injector:

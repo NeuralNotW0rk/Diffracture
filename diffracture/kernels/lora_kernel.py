@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from base_kernel import Kernel
+from .base_kernel import Kernel
 
 # The Dispatch Registry
 LORA_HANDLERS = {

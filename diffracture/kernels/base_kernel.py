@@ -1,7 +1,7 @@
 from torch import Tensor
 import torch.nn as nn
 
-from topology.prism import Prism
+from ..topology.base_prism import Prism
 
 
 class Kernel:

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diffracture"
+version = "0.1.0"
+description = "A short description of the diffracture project"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+dependencies = [
+    # Add your project's dependencies here, e.g.,
+    # "torch>=2.0.0",
+    # "numpy",
+]
