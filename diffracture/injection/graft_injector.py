@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from .base_injector import Injector
+from ..registry import register_injector
 
 
 class GraftedModule(nn.Module):
@@ -16,42 +17,40 @@ class GraftedModule(nn.Module):
         return self.kernel(x, self.prism, self.original_module)
     
 
+@register_injector("graft")
 class GraftInjector(Injector):
     def __init__(self):
         super().__init__()
         # Internal registry to track what changed for cleanup
         self._original_modules = {}
 
-    def inject(self, target_model, lattice, registry):
+    def inject(self, target_model, lattice):
         """
         Replaces target layers with GraftedModules.
         """
         for address, prism in lattice.nodes.items():
-            # Locate the target module using PyTorch's path logic
-            # Prisms store address as 'path/to/module', but torch uses '.'
-            torch_path = address.replace('/', '.')
             
             try:
-                original_module = target_model.get_submodule(torch_path)
+                original_module = target_model.get_submodule(address)
             except AttributeError:
                 print(f"Warning: Could not find module at {address}. Skipping.")
                 continue
 
-            if type(original_module) not in registry:
-                print(f"Warning: No handler for {type(original_module)} at {address}. Skipping.")
+            # The Kernel dictates whether it supports this module
+            kernel = lattice.get_kernel(prism.kernel_type)
+            if not kernel.is_supported(original_module):
+                print(f"Warning: Kernel '{prism.kernel_type}' does not support {type(original_module)} at {address}. Skipping.")
                 continue
 
             # Find the parent so we can reassign the attribute
-            parent_path = '.'.join(torch_path.split('.')[:-1])
-            leaf_name = torch_path.split('.')[-1]
+            parent_path = '.'.join(address.split('.')[:-1])
+            leaf_name = address.split('.')[-1]
             parent_module = target_model.get_submodule(parent_path) if parent_path else target_model
 
             # Backup for cleanup()
             self._original_modules[address] = original_module
 
             # Swap the module
-            # The Kernel is fetched based on the Prism's kernel_type (e.g., 'lora')
-            kernel = lattice.get_kernel(prism.kernel_type)
             graft = GraftedModule(original_module, prism, kernel)
             
             setattr(parent_module, leaf_name, graft)
@@ -69,8 +68,7 @@ class GraftInjector(Injector):
                 
             # Match the training/eval mode of the graft to the original
             # This ensures things like Dropout/BatchNorm behave correctly
-            torch_path = address.replace('/', '.')
-            graft = target_model.get_submodule(torch_path)
+            graft = target_model.get_submodule(address)
             graft.train(original_module.training)
 
     def on_extract(self, target_model) -> dict:
@@ -80,8 +78,7 @@ class GraftInjector(Injector):
         extracted_data = {}
         
         for address in self._original_modules.keys():
-            torch_path = address.replace('/', '.')
-            graft = target_model.get_submodule(torch_path)
+            graft = target_model.get_submodule(address)
             
             # Pull the Prism's state_dict
             extracted_data[address] = graft.prism.state_dict()
@@ -93,8 +90,7 @@ class GraftInjector(Injector):
         Generic collapse: Applies all deltas provided by the kernel to the module.
         """
         for address, original_module in self._original_modules.items():
-            torch_path = address.replace('/', '.')
-            graft = target_model.get_submodule(torch_path)
+            graft = target_model.get_submodule(address)
             
             # Offload logic: Kernel returns a dict of {param_name: delta_tensor}
             # e.g., {"weight": tensor, "bias": tensor}
@@ -114,9 +110,8 @@ class GraftInjector(Injector):
         Reverses the surgery by putting the original modules back.
         """
         for address, original_module in self._original_modules.items():
-            torch_path = address.replace('/', '.')
-            parent_path = '.'.join(torch_path.split('.')[:-1])
-            leaf_name = torch_path.split('.')[-1]
+            parent_path = '.'.join(address.split('.')[:-1])
+            leaf_name = address.split('.')[-1]
             parent_module = target_model.get_submodule(parent_path) if parent_path else target_model
             
             setattr(parent_module, leaf_name, original_module)

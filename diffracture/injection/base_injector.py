@@ -4,7 +4,7 @@ from ..topology.lattice import Lattice
 
 
 class Injector:
-    def inject(self, target_model, lattice, registry):
+    def inject(self, target_model, lattice):
         """Must be implemented by subclasses to perform the actual manipulation."""
         raise NotImplementedError("Subclasses must implement the 'inject' method.")
 
