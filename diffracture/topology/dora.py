@@ -4,17 +4,15 @@ import torch.nn as nn
 from .base_prism import Prism
 from ..registry import register_prism
 
-@register_prism("lora")
-class LoRAPrism(Prism):
+@register_prism("dora")
+class DoRAPrism(Prism):
     """
-    A data container for Low-Rank Adaptation parameters.
-    Stored in the Lattice and utilized by the LoRAKernel.
+    A data container for Weight-Decomposed Low-Rank Adaptation (DoRA) parameters.
+    Stored in the Lattice and utilized by the DoRAKernel.
     """
     def __init__(self, address: str, rank: int, alpha: float, in_features: int, out_features: int, kernel_size: tuple = None):
-        # Initialize the base class with the address and kernel type
-        super().__init__(address, kernel_type="lora")
+        super().__init__(address, kernel_type="dora")
         
-        # Metadata
         self.metadata.update({
             "rank": rank,
             "alpha": alpha,
@@ -23,21 +21,17 @@ class LoRAPrism(Prism):
             "kernel_size": kernel_size
         })
 
-        # Parameter Initialization
         if kernel_size:
-            # Convolutional LoRA: A is [rank, in, k], B is [out, rank, 1]
             a_shape = (rank, in_features, *kernel_size)
             b_shape = (out_features, rank, *(1 for _ in kernel_size))
         else:
-            # Linear LoRA: A is [rank, in], B is [out, rank]
             a_shape = (rank, in_features)
             b_shape = (out_features, rank)
 
-        # Parameter Storage
-        # Initializing A with Kaiming Uniform and B with Zeros
         self.params["lora_down"] = nn.Parameter(torch.empty(a_shape))
         self.params["lora_up"] = nn.Parameter(torch.zeros(b_shape))
-        
+        self.params["magnitude"] = nn.Parameter(torch.ones(out_features))
+
         nn.init.kaiming_uniform_(self.params["lora_down"], a=5**0.5)
 
     @classmethod

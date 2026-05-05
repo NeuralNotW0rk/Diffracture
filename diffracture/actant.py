@@ -6,8 +6,8 @@ class Actant:
         self.lattice = lattice
         self.injector = None
 
-    def activate(self, injector_name: str = "graft"):
-        injector_cls = get_injector(injector_name)
+    def activate(self, injection_strategy: str = "graft"):
+        injector_cls = get_injector(injection_strategy)
         self.injector = injector_cls()
         
         # Modification

@@ -5,7 +5,9 @@ from typing import Dict
 from pathlib import Path
 
 from diffracture.kernels.lora_kernel import LoRAKernel
+from diffracture.kernels.dora_kernel import DoRAKernel
 from diffracture.topology.lora import LoRAPrism
+from diffracture.topology.dora import DoRAPrism
 from diffracture.topology.lattice import Lattice
 
 def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier: float, alpha: float = None) -> Lattice:
@@ -14,6 +16,7 @@ def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier
     """
     lattice = Lattice()
     lattice.add_kernel("lora", LoRAKernel())
+    lattice.add_kernel("dora", DoRAKernel())
     
     grouped_weights = {}
 
@@ -52,20 +55,22 @@ def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier
         # Combine legacy multiplier and alpha into a single effective alpha
         effective_alpha = layer_alpha * multiplier
         
-        prism = LoRAPrism(
+        is_dora = (mag_w is not None)
+        prism_cls = DoRAPrism if is_dora else LoRAPrism
+
+        prism = prism_cls(
             address=address,
             rank=rank,
             alpha=effective_alpha,
             in_features=down_w.size(1),
             out_features=up_w.size(0),
-            kernel_size=down_w.shape[2:] if down_w.dim() > 2 else None,
-            has_magnitude=(mag_w is not None)
+            kernel_size=down_w.shape[2:] if down_w.dim() > 2 else None
         )
         
         with torch.no_grad():
             prism.params["lora_down"].copy_(down_w)
             prism.params["lora_up"].copy_(up_w)
-            if mag_w is not None:
+            if is_dora:
                 prism.params["magnitude"].copy_(mag_w.view(-1))
         
         lattice.add_prism(prism)

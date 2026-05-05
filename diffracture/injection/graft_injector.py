@@ -13,6 +13,10 @@ class GraftedModule(nn.Module):
         self.kernel = kernel
 
     def forward(self, x):
+        # Short-circuit logic to instantly disable the graft without surgery
+        if not self.prism.active or self.prism.multiplier == 0.0:
+            return self.original_module(x)
+            
         # The Kernel uses F.linear or F.conv1d internally
         return self.kernel(x, self.prism, self.original_module)
     

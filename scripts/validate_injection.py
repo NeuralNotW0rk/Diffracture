@@ -27,7 +27,7 @@ def run_validation_test(model: nn.Module, lattice_ckpt: str):
     actant = Actant(model, lattice)
     
     print("Activating...")
-    actant.activate(injector_name="graft")
+    actant.activate(injection_strategy="graft")
     
     print(f"Injection Complete. Verified device: {next(model.parameters()).device}")
 
