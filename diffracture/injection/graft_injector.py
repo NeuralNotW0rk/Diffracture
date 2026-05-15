@@ -40,6 +40,9 @@ class GraftInjector(Injector):
                 print(f"Warning: Could not find module at {address}. Skipping.")
                 continue
 
+            if isinstance(original_module, GraftedModule):
+                raise RuntimeError(f"Module at {address} is already grafted. Stacking grafted modules is not currently supported.")
+
             # The Kernel dictates whether it supports this module
             kernel = lattice.get_kernel(prism.kernel_type)
             if not kernel.is_supported(original_module):
