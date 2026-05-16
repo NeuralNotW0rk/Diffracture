@@ -50,7 +50,8 @@ class DoRAKernel(Kernel):
         
         rank = prism.metadata.get("rank", weight_a.size(0))
         alpha = prism.metadata.get("alpha", rank)
-        scale = (alpha / rank) * prism.multiplier
+        strength = getattr(prism, "strength", 1.0)
+        scale = (alpha / rank) * strength
         weight_delta = (weight_b @ weight_a) * scale
         weight_delta = weight_delta.view(original_module.weight.shape)
         

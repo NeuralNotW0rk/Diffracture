@@ -5,7 +5,13 @@ class Actant:
         self.model = target_model
         self.active_injections = []
 
-    def activate(self, lattice, injection_strategy: str = "graft"):
+    def activate(self, lattice, injection_strategy: str = "graft", strength: float = 1.0):
+        # Attach strength to the lattice and its prisms so individual kernels can interpret it
+        lattice.strength = strength
+        if hasattr(lattice, "_nodes"):
+            for prism in lattice._nodes:
+                prism.strength = strength
+                
         injector_cls = get_injector(injection_strategy)
         injector = injector_cls()
         
