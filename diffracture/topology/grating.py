@@ -4,11 +4,11 @@ import json
 from safetensors import safe_open
 from safetensors.torch import save_file
 from pathlib import Path
-from ..registry import get_prism, get_kernel
+from ..registry import get_element, get_kernel
 
-class Lattice(nn.Module):
+class Grating(nn.Module):
     """
-    A central container for Prisms and Kernels.
+    A central container for Elements and Kernels.
     Acts as the 'Source of Truth' for a specific set of model interventions.
     """
     def __init__(self):
@@ -23,25 +23,25 @@ class Lattice(nn.Module):
     @property
     def nodes(self) -> dict:
         """
-        Returns a mapping of original addresses to Prisms.
+        Returns a mapping of original addresses to Elements.
         Uses native PyTorch dot notation (e.g., 'path.to.module').
         """
-        return {prism.address: prism for prism in self._nodes}
+        return {element.address: element for element in self._nodes}
 
-    def add_prism(self, prism):
+    def add_element(self, element):
         """
-        Registers a Prism in the lattice.
+        Registers an Element in the grating.
         """
-        self._nodes.append(prism)
+        self._nodes.append(element)
 
     def add_kernel(self, name: str, kernel):
         """Registers a stateless mathematical kernel."""
         self.kernels[name] = kernel
 
     def set_multiplier(self, multiplier: float):
-        """Adjusts the inference strength for all active Prisms."""
-        for prism in self._nodes:
-            prism.multiplier = multiplier
+        """Adjusts the inference strength for all active Elements."""
+        for element in self._nodes:
+            element.multiplier = multiplier
 
     def get_kernel(self, name: str):
         """Retrieves a kernel by its string identifier (e.g., 'lora')."""
@@ -54,17 +54,17 @@ class Lattice(nn.Module):
             self.kernels[name] = kernel_cls()
             return self.kernels[name]
         except KeyError:
-            raise KeyError(f"Kernel '{name}' not found in Lattice cache or global registry.")
+            raise KeyError(f"Kernel '{name}' not found in Grating cache or global registry.")
 
     def save(self, path: str, topology_path: str = None):
-        """Saves a Lattice to a safetensors file with embedded topology metadata.
+        """Saves a Grating to a safetensors file with embedded topology metadata.
         Optionally exports the topology to a separate JSON file for offline editing."""
         topology = []
-        for prism in self._nodes:
+        for element in self._nodes:
             topology.append({
-                "address": prism.address,
-                "kernel_type": prism.kernel_type,
-                "metadata": prism.metadata
+                "address": element.address,
+                "kernel_type": element.kernel_type,
+                "metadata": element.metadata
             })
 
         if topology_path:
@@ -74,17 +74,17 @@ class Lattice(nn.Module):
         state_dict = self.state_dict()
         if len(state_dict) == 0:
             # Safetensors crashes if the state_dict is completely empty.
-            # We insert a tiny dummy tensor to allow saving weightless Lattices natively.
-            state_dict["__lattice_dummy__"] = torch.zeros(1, dtype=torch.int8)
+            # We insert a tiny dummy tensor to allow saving weightless Gratings natively.
+            state_dict["__grating_dummy__"] = torch.zeros(1, dtype=torch.int8)
             
         metadata = {"topology": json.dumps(topology)}
         save_file(state_dict, path, metadata=metadata)
 
     @classmethod
     def load(cls, path: str, topology_path: str = None):
-        """Loads a Lattice from a safetensors file. 
+        """Loads a Grating from a safetensors file. 
         If topology_path is provided, it overrides the embedded topology metadata."""
-        lattice = cls()
+        grating = cls()
         
         topology = None
         if topology_path and Path(topology_path).exists():
@@ -99,12 +99,12 @@ class Lattice(nn.Module):
                 
             for node in topology:
                 ktype = node["kernel_type"]
-                prism_cls = get_prism(ktype)
-                prism = prism_cls.from_metadata(node["address"], node["metadata"])
-                lattice.add_prism(prism)
+                element_cls = get_element(ktype)
+                element = element_cls.from_metadata(node["address"], node["metadata"])
+                grating.add_element(element)
 
-            state_dict = {key: f.get_tensor(key) for key in f.keys() if key != "__lattice_dummy__"}
+            state_dict = {key: f.get_tensor(key) for key in f.keys() if key != "__grating_dummy__"}
             if state_dict:
-                lattice.load_state_dict(state_dict, strict=False)
+                grating.load_state_dict(state_dict, strict=False)
             
-        return lattice
+        return grating

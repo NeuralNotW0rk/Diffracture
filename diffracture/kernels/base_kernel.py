@@ -1,7 +1,7 @@
 from torch import Tensor
 import torch.nn as nn
 
-from ..topology.base_prism import Prism
+from ..topology.base_element import Element
 
 
 class Kernel:
@@ -12,11 +12,11 @@ class Kernel:
         "requires_weight_fusion": False # Modifies base weights, requires parametrization/grafting
     }
 
-    def __call__(self, x: Tensor, prism: Prism, original_module: nn.Module):
+    def __call__(self, x: Tensor, element: Element, original_module: nn.Module):
         """Standard execution during the forward pass."""
         raise NotImplementedError
 
-    def forward_delta(self, x: Tensor, base_output: Tensor, prism: Prism, original_module: nn.Module) -> Tensor:
+    def forward_delta(self, x: Tensor, base_output: Tensor, element: Element, original_module: nn.Module) -> Tensor:
         """Computes only the modification to the activations (used by HookInjector)."""
         raise NotImplementedError
 
@@ -24,6 +24,6 @@ class Kernel:
         """Returns True if the kernel can operate on the given module."""
         raise NotImplementedError
 
-    def compute_delta(self, prism: Prism) -> Tensor:
+    def compute_delta(self, element: Element) -> Tensor:
         """Required for the DirectInjector / merging logic."""
         raise NotImplementedError

@@ -6,17 +6,17 @@ from pathlib import Path
 
 from diffracture.kernels.lora_kernel import LoRAKernel
 from diffracture.kernels.dora_kernel import DoRAKernel
-from diffracture.topology.lora import LoRAPrism
-from diffracture.topology.dora import DoRAPrism
-from diffracture.topology.lattice import Lattice
+from diffracture.topology.lora import LoRAElement
+from diffracture.topology.dora import DoRAElement
+from diffracture.topology.grating import Grating
 
-def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier: float, alpha: float = None) -> Lattice:
+def convert_loraw_to_grating(old_state_dict: Dict[str, torch.Tensor], multiplier: float, alpha: float = None) -> Grating:
     """
-    Converts a legacy LoRAW state_dict into a modern Diffracture Lattice.
+    Converts a legacy LoRAW state_dict into a modern Diffracture Grating.
     """
-    lattice = Lattice()
-    lattice.add_kernel("lora", LoRAKernel())
-    lattice.add_kernel("dora", DoRAKernel())
+    grating = Grating()
+    grating.add_kernel("lora", LoRAKernel())
+    grating.add_kernel("dora", DoRAKernel())
     
     grouped_weights = {}
 
@@ -42,7 +42,7 @@ def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier
         if base_address not in grouped_weights:
             grouped_weights[base_address] = {}
         grouped_weights[base_address][param_type] = tensor
-
+    
     for address, weights in grouped_weights.items():
         down_w = weights["lora_down"]
         up_w = weights["lora_up"]
@@ -56,9 +56,9 @@ def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier
         effective_alpha = layer_alpha * multiplier
         
         is_dora = (mag_w is not None)
-        prism_cls = DoRAPrism if is_dora else LoRAPrism
+        element_cls = DoRAElement if is_dora else LoRAElement
 
-        prism = prism_cls(
+        element = element_cls(
             address=address,
             rank=rank,
             alpha=effective_alpha,
@@ -68,14 +68,14 @@ def convert_loraw_to_lattice(old_state_dict: Dict[str, torch.Tensor], multiplier
         )
         
         with torch.no_grad():
-            prism.params["lora_down"].copy_(down_w)
-            prism.params["lora_up"].copy_(up_w)
+            element.params["lora_down"].copy_(down_w)
+            element.params["lora_up"].copy_(up_w)
             if is_dora:
-                prism.params["magnitude"].copy_(mag_w.view(-1))
+                element.params["magnitude"].copy_(mag_w.view(-1))
         
-        lattice.add_prism(prism)
+        grating.add_element(element)
         
-    return lattice
+    return grating
 
 def convert_path(input_path: Path, output_path: Path, fallback_multiplier: float, fallback_alpha: float = None, save_topology: bool = False):
     multiplier = fallback_multiplier
@@ -99,21 +99,21 @@ def convert_path(input_path: Path, output_path: Path, fallback_multiplier: float
     print(f"Loading legacy weights from {input_path}...")
     old_state_dict = torch.load(input_path, map_location="cpu")
     
-    print("Converting to Diffracture Lattice...")
-    lattice = convert_loraw_to_lattice(old_state_dict, multiplier, alpha=alpha)
+    print("Converting to Diffracture Grating...")
+    grating = convert_loraw_to_grating(old_state_dict, multiplier, alpha=alpha)
     
     output_path.parent.mkdir(parents=True, exist_ok=True)
     topology_path = str(output_path.with_suffix('.json')) if save_topology else None
     
-    lattice.save(str(output_path), topology_path=topology_path)
-    print(f"Saved Diffracture Lattice to: {output_path}")
+    grating.save(str(output_path), topology_path=topology_path)
+    print(f"Saved Diffracture Grating to: {output_path}")
     if save_topology:
         print(f"Exported optional topology JSON to: {topology_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert legacy LoRAW checkpoints to Diffracture Lattices.")
+    parser = argparse.ArgumentParser(description="Convert legacy LoRAW checkpoints to Diffracture Gratings.")
     parser.add_argument("input", type=str, help="Path to a single .ckpt/.pt file, or a directory of checkpoints.")
-    parser.add_argument("output", type=str, help="Path to save the converted .safetensors Lattice, or output directory.")
+    parser.add_argument("output", type=str, help="Path to save the converted .safetensors Grating, or output directory.")
     parser.add_argument("--alpha", type=float, default=None, help="The alpha value used during legacy training (defaults to rank).")
     parser.add_argument("--multiplier", type=float, default=1.0, help="The multiplier used during legacy training.")
     parser.add_argument("--save-topology", action="store_true", help="Export the topology to a separate JSON file.")

@@ -39,18 +39,18 @@ class LoRAKernel(Kernel):
     def is_supported(self, original_module: nn.Module) -> bool:
         return type(original_module) in LORA_HANDLERS
 
-    def forward_delta(self, x: Tensor, base_output: Tensor, prism, original_module) -> Tensor:
+    def forward_delta(self, x: Tensor, base_output: Tensor, element, original_module) -> Tensor:
         """Computes the activation delta without triggering original_module."""
         handler = LORA_HANDLERS.get(type(original_module))
         if not handler:
             raise TypeError(f"Unhandled module type: {type(original_module)}")
 
-        # Parameters from Prism
-        lora_a = prism.params["lora_down"].to(x.device, dtype=x.dtype)
-        lora_b = prism.params["lora_up"].to(x.device, dtype=x.dtype)
-        rank = prism.metadata.get("rank", lora_a.size(0))
-        alpha = prism.metadata.get("alpha", rank)
-        strength = getattr(prism, "strength", 1.0)
+        # Parameters from Element
+        lora_a = element.params["lora_down"].to(x.device, dtype=x.dtype)
+        lora_b = element.params["lora_up"].to(x.device, dtype=x.dtype)
+        rank = element.metadata.get("rank", lora_a.size(0))
+        alpha = element.metadata.get("alpha", rank)
+        strength = getattr(element, "strength", 1.0)
         scale = (alpha / rank) * strength
 
         # LoRA Path
@@ -60,18 +60,18 @@ class LoRAKernel(Kernel):
 
         return lx * scale
 
-    def __call__(self, x: Tensor, prism, original_module):
+    def __call__(self, x: Tensor, element, original_module):
         base_output = original_module(x)
-        return base_output + self.forward_delta(x, base_output, prism, original_module)
+        return base_output + self.forward_delta(x, base_output, element, original_module)
     
-    def compute_delta(self, prism, original_module) -> dict:
+    def compute_delta(self, element, original_module) -> dict:
         # Standard LoRA math
-        weight_a = prism.params["lora_down"].view(prism.params["lora_down"].size(0), -1)
-        weight_b = prism.params["lora_up"].view(prism.params["lora_up"].size(0), -1)
+        weight_a = element.params["lora_down"].view(element.params["lora_down"].size(0), -1)
+        weight_b = element.params["lora_up"].view(element.params["lora_up"].size(0), -1)
         
-        rank = prism.metadata.get("rank", weight_a.size(0))
-        alpha = prism.metadata.get("alpha", rank)
-        strength = getattr(prism, "strength", 1.0)
+        rank = element.metadata.get("rank", weight_a.size(0))
+        alpha = element.metadata.get("alpha", rank)
+        strength = getattr(element, "strength", 1.0)
         scale = (alpha / rank) * strength
         weight_delta = (weight_b @ weight_a) * scale
         weight_delta = weight_delta.view(original_module.weight.shape)
@@ -85,7 +85,7 @@ class LoRAKernel(Kernel):
         }
         
         # Offload the bias check here
-        if "bias" in prism.params:
-            updates["bias"] = prism.params["bias"]
+        if "bias" in element.params:
+            updates["bias"] = element.params["bias"]
             
         return updates

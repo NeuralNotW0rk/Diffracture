@@ -25,20 +25,20 @@ class UnparametrizedModuleProxy:
 
 
 class DiffractureParametrization(nn.Module):
-    def __init__(self, prism, kernel, original_module, param_name):
+    def __init__(self, element, kernel, original_module, param_name):
         super().__init__()
-        self.prism = prism
+        self.element = element
         self.kernel = kernel
         self.param_name = param_name
         self.proxy = UnparametrizedModuleProxy(original_module)
 
     def forward(self, x):
         # O(1) Short-circuit logic to instantly disable the adapter
-        if not self.prism.active or self.prism.multiplier == 0.0:
+        if not self.element.active or self.element.multiplier == 0.0:
             return x
 
         # We pass the safe proxy into the kernel so it can read base weights safely
-        deltas = self.kernel.compute_delta(self.prism, self.proxy)
+        deltas = self.kernel.compute_delta(self.element, self.proxy)
         
         delta = deltas.get(self.param_name)
         if delta is not None:
@@ -57,41 +57,41 @@ class ParametrizeInjector(Injector):
         super().__init__()
         self._parametrized_modules = {}
 
-    def inject(self, target_model, lattice):
-        for address, prism in lattice.nodes.items():
+    def inject(self, target_model, grating):
+        for address, element in grating.nodes.items():
             try:
                 original_module = target_model.get_submodule(address)
             except AttributeError:
                 continue
 
-            kernel = lattice.get_kernel(prism.kernel_type)
+            kernel = grating.get_kernel(element.kernel_type)
             if not kernel.is_supported(original_module):
                 continue
 
             # Perform a dry-run to discover which parameters this Kernel updates
-            deltas = kernel.compute_delta(prism, original_module)
+            deltas = kernel.compute_delta(element, original_module)
             param_names = list(deltas.keys())
             
-            self._parametrized_modules[address] = {"module": original_module, "params": param_names, "prism": prism}
+            self._parametrized_modules[address] = {"module": original_module, "params": param_names, "element": element}
 
             for param_name in param_names:
                 if hasattr(original_module, param_name):
-                    p_wrapper = DiffractureParametrization(prism, kernel, original_module, param_name)
+                    p_wrapper = DiffractureParametrization(element, kernel, original_module, param_name)
                     parametrize.register_parametrization(original_module, param_name, p_wrapper)
 
         print(f"Successfully parametrized {len(self._parametrized_modules)} modules.")
 
     def on_inject(self, target_model):
-        # Freeze the original weights so only Prisms train
+        # Freeze the original weights so only Elements train
         for info in self._parametrized_modules.values():
             original_module = info["module"]
             for param in original_module.parameters():
                 param.requires_grad = False
 
     def on_extract(self, target_model) -> dict:
-        return {addr: info["prism"].state_dict() for addr, info in self._parametrized_modules.items()}
+        return {addr: info["element"].state_dict() for addr, info in self._parametrized_modules.items()}
     
-    def on_collapse(self, target_model, lattice):
+    def on_collapse(self, target_model, grating):
         # PyTorch has a built in function to perfectly fuse parametrizations
         for info in self._parametrized_modules.values():
             original_module = info["module"]

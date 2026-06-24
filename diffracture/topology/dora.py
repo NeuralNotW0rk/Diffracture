@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 
-from .base_prism import Prism
-from ..registry import register_prism
+from .base_element import Element
+from ..registry import register_element
 
-@register_prism("dora")
-class DoRAPrism(Prism):
+@register_element("dora")
+class DoRAElement(Element):
     """
     A data container for Weight-Decomposed Low-Rank Adaptation (DoRA) parameters.
-    Stored in the Lattice and utilized by the DoRAKernel.
+    Stored in the Grating and utilized by the DoRAKernel.
     """
     def __init__(self, address: str, rank: int, alpha: float, in_features: int, out_features: int, kernel_size: tuple = None):
         super().__init__(address, kernel_type="dora")

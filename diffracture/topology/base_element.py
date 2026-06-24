@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 
-class Prism(nn.Module):
+class Element(nn.Module):
     def __init__(self, address: str, kernel_type: str):
         super().__init__()
         self.address = address
@@ -13,5 +13,5 @@ class Prism(nn.Module):
 
     @classmethod
     def from_metadata(cls, address: str, metadata: dict):
-        """Instantiates a Prism from its serialized metadata."""
+        """Instantiates an Element from its serialized metadata."""
         raise NotImplementedError("Subclasses must implement 'from_metadata'.")

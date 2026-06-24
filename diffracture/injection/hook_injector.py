@@ -9,40 +9,40 @@ class HookInjector(Injector):
         super().__init__()
         # Store handles so we can call .remove() later
         self._handles = {}
-        # Keep track of which prisms are attached to which addresses
-        self._attached_prisms = {}
+        # Keep track of which elements are attached to which addresses
+        self._attached_elements = {}
 
-    def inject(self, target_model, lattice):
+    def inject(self, target_model, grating):
         """
         Attaches forward hooks to target layers without swapping them.
         """
-        for address, prism in lattice.nodes.items():
+        for address, element in grating.nodes.items():
             try:
                 original_module = target_model.get_submodule(address)
             except AttributeError:
                 print(f"Warning: Could not find module at {address}. Skipping.")
                 continue
 
-            kernel = lattice.get_kernel(prism.kernel_type)
+            kernel = grating.get_kernel(element.kernel_type)
             if not kernel.is_supported(original_module):
                 continue
 
             # Define the wiretap logic
-            def hook_fn(module, input, output, p=prism, k=kernel):
+            def hook_fn(module, input, output, e=element, k=kernel):
                 # Instantly bypass the wiretap if disabled
-                if not p.active or p.multiplier == 0.0:
+                if not e.active or e.multiplier == 0.0:
                     return output
                     
                 # input is a tuple, usually (x,)
                 x = input[0]
                 # Compute only the delta to avoid an infinite recursion loop
                 # and add it directly to the module's pre-computed output
-                return output + k.forward_delta(x, output, p, module)
+                return output + k.forward_delta(x, output, e, module)
 
             # Register the hook and store the handle
             handle = original_module.register_forward_hook(hook_fn)
             self._handles[address] = handle
-            self._attached_prisms[address] = prism
+            self._attached_elements[address] = element
 
         print(f"Successfully hooked {len(self._handles)} modules.")
 
@@ -58,20 +58,20 @@ class HookInjector(Injector):
 
     def on_extract(self, target_model) -> dict:
         """
-        Harvests data directly from the prisms we tracked during inject.
+        Harvests data directly from the elements we tracked during inject.
         """
-        return {addr: p.state_dict() for addr, p in self._attached_prisms.items()}
+        return {addr: e.state_dict() for addr, e in self._attached_elements.items()}
     
-    def on_collapse(self, target_model, lattice):
+    def on_collapse(self, target_model, grating):
         """
         Math is identical to GraftInjector, but we finish by removing hooks.
         """
         with torch.no_grad():
-            for address, prism in self._attached_prisms.items():
+            for address, element in self._attached_elements.items():
                 original_module = target_model.get_submodule(address)
-                kernel = lattice.get_kernel(prism.kernel_type)
+                kernel = grating.get_kernel(element.kernel_type)
                 
-                deltas = kernel.compute_delta(prism, original_module)
+                deltas = kernel.compute_delta(element, original_module)
                 for param_name, delta in deltas.items():
                     if hasattr(original_module, param_name):
                         getattr(original_module, param_name).add_(delta)
@@ -86,5 +86,5 @@ class HookInjector(Injector):
             handle.remove()
             
         self._handles.clear()
-        self._attached_prisms.clear()
+        self._attached_elements.clear()
         print("Hooks removed. Model restored to original state.")

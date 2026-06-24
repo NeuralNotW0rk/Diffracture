@@ -7,10 +7,10 @@ import pkgutil
 from pathlib import Path
 
 # Expose registry functions at the package level
-from .registry import get_prism, get_kernel, get_injector
+from .registry import get_element, get_kernel, get_injector
 
 # Main high-level API classes
-from .topology.lattice import Lattice
+from .topology.grating import Grating
 from .actant import Actant
 
 # Auto-discover and import all modules in the package to trigger @register decorators

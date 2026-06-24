@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 
-from .base_prism import Prism
-from ..registry import register_prism
+from .base_element import Element
+from ..registry import register_element
 
-@register_prism("lora")
-class LoRAPrism(Prism):
+@register_element("lora")
+class LoRAElement(Element):
     """
     A data container for Low-Rank Adaptation parameters.
-    Stored in the Lattice and utilized by the LoRAKernel.
+    Stored in the Grating and utilized by the LoRAKernel.
     """
     def __init__(self, address: str, rank: int, alpha: float, in_features: int, out_features: int, kernel_size: tuple = None):
         # Initialize the base class with the address and kernel type

@@ -1,10 +1,10 @@
 import torch.nn as nn
 
-from ..topology.lattice import Lattice
+from ..topology.grating import Grating
 
 
 class Injector:
-    def inject(self, target_model, lattice):
+    def inject(self, target_model, grating):
         """Must be implemented by subclasses to perform the actual manipulation."""
         raise NotImplementedError("Subclasses must implement the 'inject' method.")
 
@@ -13,12 +13,12 @@ class Injector:
         pass
 
     def on_extract(self, target_model):
-        """Optional: Logic to harvest weights back into a Lattice."""
+        """Optional: Logic to harvest weights back into a Grating."""
         pass
 
-    def on_collapse(self, target_model, lattice):
+    def on_collapse(self, target_model, grating):
         """
-        Optional: Permanently merges the Lattice into the target_model 
+        Optional: Permanently merges the Grating into the target_model 
         and removes the injection footprint.
         """
         pass

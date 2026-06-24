@@ -13,9 +13,9 @@ class DirectInjector(Injector):
         super().__init__()
         self._fused = False
 
-    def inject(self, target_model, lattice):
+    def inject(self, target_model, grating):
         """
-        Iterates through the lattice and modifies model weights in-place permanently.
+        Iterates through the grating and modifies model weights in-place permanently.
         """
         if self._fused:
             print("Direct injection already performed.")
@@ -24,14 +24,14 @@ class DirectInjector(Injector):
         print("Performing direct weight injection...")
         modified_count = 0
         with torch.no_grad():
-            for address, prism in lattice.nodes.items():
+            for address, element in grating.nodes.items():
                 try:
                     original_module = target_model.get_submodule(address)
                 except AttributeError:
                     continue
 
-                kernel = lattice.get_kernel(prism.kernel_type)
-                deltas = kernel.compute_delta(prism, original_module)
+                kernel = grating.get_kernel(element.kernel_type)
+                deltas = kernel.compute_delta(element, original_module)
                 
                 for param_name, delta in deltas.items():
                     if hasattr(original_module, param_name):
@@ -53,12 +53,12 @@ class DirectInjector(Injector):
     def on_extract(self, target_model):
         """
         Extracting from a direct injection is difficult because the
-        divergence is now merged with the base. Best to use the Lattice.
+        divergence is now merged with the base. Best to use the Grating.
         """
         print("Warning: DirectInjector cannot extract divergence from merged weights.")
         return {}
 
-    def on_collapse(self, target_model, lattice):
+    def on_collapse(self, target_model, grating):
         """
         No-op for DirectInjector since weights are merged immediately on injection.
         """

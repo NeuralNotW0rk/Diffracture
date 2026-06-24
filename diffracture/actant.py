@@ -5,23 +5,23 @@ class Actant:
         self.model = target_model
         self.active_injections = []
 
-    def activate(self, lattice, injection_strategy: str = "graft", strength: float = 1.0):
-        # Attach strength to the lattice and its prisms so individual kernels can interpret it
-        lattice.strength = strength
-        if hasattr(lattice, "_nodes"):
-            for prism in lattice._nodes:
-                prism.strength = strength
+    def activate(self, grating, injection_strategy: str = "graft", strength: float = 1.0):
+        # Attach strength to the grating and its elements so individual kernels can interpret it
+        grating.strength = strength
+        if hasattr(grating, "_nodes"):
+            for element in grating._nodes:
+                element.strength = strength
                 
         injector_cls = get_injector(injection_strategy)
         injector = injector_cls()
         
         # Modification
-        injector.inject(self.model, lattice)
+        injector.inject(self.model, grating)
         
         # Prepare for divergence
         injector.on_inject(self.model)
         
-        self.active_injections.append((injector, lattice))
+        self.active_injections.append((injector, grating))
 
     def deactivate(self):
         """
@@ -30,7 +30,7 @@ class Actant:
         if not self.active_injections:
             return
             
-        for injector, lattice in reversed(self.active_injections):
+        for injector, grating in reversed(self.active_injections):
             injector.cleanup(self.model)
                 
         self.active_injections.clear()
@@ -49,6 +49,6 @@ class Actant:
         """
         if not self.active_injections:
             raise RuntimeError("Actant must be activated before collapse.")
-        for injector, lattice in self.active_injections:
-            injector.on_collapse(self.model, lattice)
+        for injector, grating in self.active_injections:
+            injector.on_collapse(self.model, grating)
         self.active_injections.clear()

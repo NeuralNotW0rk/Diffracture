@@ -6,19 +6,19 @@ from ..registry import register_injector
 
 
 class GraftedModule(nn.Module):
-    def __init__(self, original_module, prism, kernel):
+    def __init__(self, original_module, element, kernel):
         super().__init__()
         self.original_module = original_module
-        self.prism = prism
+        self.element = element
         self.kernel = kernel
 
     def forward(self, x):
         # Short-circuit logic to instantly disable the graft without surgery
-        if not self.prism.active or self.prism.multiplier == 0.0:
+        if not self.element.active or self.element.multiplier == 0.0:
             return self.original_module(x)
             
         # The Kernel uses F.linear or F.conv1d internally
-        return self.kernel(x, self.prism, self.original_module)
+        return self.kernel(x, self.element, self.original_module)
     
 
 @register_injector("graft")
@@ -28,11 +28,11 @@ class GraftInjector(Injector):
         # Internal registry to track what changed for cleanup
         self._original_modules = {}
 
-    def inject(self, target_model, lattice):
+    def inject(self, target_model, grating):
         """
         Replaces target layers with GraftedModules.
         """
-        for address, prism in lattice.nodes.items():
+        for address, element in grating.nodes.items():
             
             try:
                 original_module = target_model.get_submodule(address)
@@ -44,9 +44,9 @@ class GraftInjector(Injector):
                 raise RuntimeError(f"Module at {address} is already grafted. Stacking grafted modules is not currently supported.")
 
             # The Kernel dictates whether it supports this module
-            kernel = lattice.get_kernel(prism.kernel_type)
+            kernel = grating.get_kernel(element.kernel_type)
             if not kernel.is_supported(original_module):
-                print(f"Warning: Kernel '{prism.kernel_type}' does not support {type(original_module)} at {address}. Skipping.")
+                print(f"Warning: Kernel '{element.kernel_type}' does not support {type(original_module)} at {address}. Skipping.")
                 continue
 
             # Find the parent so we can reassign the attribute
@@ -58,7 +58,7 @@ class GraftInjector(Injector):
             self._original_modules[address] = original_module
 
             # Swap the module
-            graft = GraftedModule(original_module, prism, kernel)
+            graft = GraftedModule(original_module, element, kernel)
             
             setattr(parent_module, leaf_name, graft)
 
@@ -80,19 +80,19 @@ class GraftInjector(Injector):
 
     def on_extract(self, target_model) -> dict:
         """
-        Harvests the trained parameters from the Prisms inside the grafts.
+        Harvests the trained parameters from the Elements inside the grafts.
         """
         extracted_data = {}
         
         for address in self._original_modules.keys():
             graft = target_model.get_submodule(address)
             
-            # Pull the Prism's state_dict
-            extracted_data[address] = graft.prism.state_dict()
+            # Pull the Element's state_dict
+            extracted_data[address] = graft.element.state_dict()
         
         return extracted_data
     
-    def on_collapse(self, target_model, lattice):
+    def on_collapse(self, target_model, grating):
         """
         Generic collapse: Applies all deltas provided by the kernel to the module.
         """
@@ -101,7 +101,7 @@ class GraftInjector(Injector):
             
             # Offload logic: Kernel returns a dict of {param_name: delta_tensor}
             # e.g., {"weight": tensor, "bias": tensor}
-            deltas = graft.kernel.compute_delta(graft.prism, original_module)
+            deltas = graft.kernel.compute_delta(graft.element, original_module)
             
             # Blind Application
             with torch.no_grad():
