@@ -1,3 +1,4 @@
+import torch
 from .registry import get_injector
 
 class Actant:
@@ -52,3 +53,72 @@ class Actant:
         for injector, grating in self.active_injections:
             injector.on_collapse(self.model, grating)
         self.active_injections.clear()
+
+    def analyze_clusters(self, 
+                         grating, 
+                         loader, 
+                         strategy_name: str, 
+                         channel_dims: dict, 
+                         num_clusters: dict, 
+                         **kwargs):
+        """
+        Orchestrates unsupervised feature clustering across all BendingElements in the grating.
+        Automatically updates the element metadata with the computed cluster_map in-place.
+        """
+        # Lazy import to avoid loading heavy machine learning modules unless analysis is run
+        from .analysis.clustering import FeatureClusteringPipeline
+        
+        # Initialize pipeline
+        pipeline = FeatureClusteringPipeline(self.model, strategy_name=strategy_name)
+        
+        # Identify addresses requiring clustering
+        target_addresses = []
+        for address, element in grating.nodes.items():
+            cluster = element.metadata.get("cluster")
+            if cluster is not None:
+                if address in channel_dims and address in num_clusters:
+                    target_addresses.append(address)
+                else:
+                    print(f"Warning: Element at '{address}' targets cluster {cluster}, "
+                          f"but lacks required 'channel_dims' or 'num_clusters' config. Skipping.")
+
+        if not target_addresses:
+            print("No elements in the grating require cluster analysis.")
+            return
+
+        # Start collection hooks
+        print(f"Activating collectors for: {target_addresses}")
+        pipeline.collector.start_collecting(target_addresses)
+        
+        # Run forward passes on the loader to compile sample activations
+        print("Feeding dataset loader through the model to collect activations...")
+        for batch in loader:
+            with torch.no_grad():
+                if isinstance(batch, (list, tuple)):
+                    # Assume batch is (x, y) or (x,) - pass first item as input
+                    self.model(batch[0])
+                elif isinstance(batch, dict):
+                    self.model(**batch)
+                else:
+                    self.model(batch)
+                    
+        # Stop collection hooks
+        pipeline.collector.stop_collecting()
+        
+        # Run clustering and update elements in-place
+        for address in target_addresses:
+            element = grating.nodes[address]
+            ch_dim = channel_dims[address]
+            k_clusters = num_clusters[address]
+            
+            cluster_map = pipeline.run_clustering(
+                address=address,
+                channel_dim=ch_dim,
+                num_clusters=k_clusters,
+                **kwargs
+            )
+            
+            element.metadata["cluster_map"] = cluster_map
+            print(f"Successfully populated cluster_map for element at '{address}'.")
+            
+        pipeline.collector.clear()

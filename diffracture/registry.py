@@ -3,6 +3,7 @@ from typing import Dict, Type, Any
 ELEMENT_REGISTRY: Dict[str, Type[Any]] = {}
 KERNEL_REGISTRY: Dict[str, Type[Any]] = {}
 INJECTOR_REGISTRY: Dict[str, Type[Any]] = {}
+EXEMPLAR_REGISTRY: Dict[str, Type[Any]] = {}
 
 def register_element(name: str):
     """A decorator to register an Element with a given string identifier."""
@@ -46,3 +47,17 @@ def get_injector(name: str) -> Type[Any]:
     if name not in INJECTOR_REGISTRY:
         raise KeyError(f"No Injector registered for '{name}'. Available: {list(INJECTOR_REGISTRY.keys())}")
     return INJECTOR_REGISTRY[name]
+
+def register_exemplar(name: str):
+    """A decorator to register an ExemplarStrategy with a given string identifier."""
+    def decorator(cls: Type[Any]):
+        if name in EXEMPLAR_REGISTRY:
+            raise ValueError(f"Exemplar strategy '{name}' is already registered.")
+        EXEMPLAR_REGISTRY[name] = cls
+        return cls
+    return decorator
+
+def get_exemplar(name: str) -> Type[Any]:
+    if name not in EXEMPLAR_REGISTRY:
+        raise KeyError(f"No Exemplar strategy registered for '{name}'. Available: {list(EXEMPLAR_REGISTRY.keys())}")
+    return EXEMPLAR_REGISTRY[name]

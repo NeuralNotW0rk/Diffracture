@@ -33,6 +33,24 @@ class BendingKernel(Kernel):
                 return 1
             return x.ndim - 1
 
+    def _get_indices_tensor(self, x: Tensor, element, channel_dim: int) -> Tensor:
+        indices = element.metadata.get("indices")
+        cluster = element.metadata.get("cluster")
+        cluster_map = element.metadata.get("cluster_map")
+        
+        # Resolve indices dynamically if cluster and map are provided and indices is empty
+        if (indices is None or len(indices) == 0) and cluster is not None and cluster_map is not None:
+            resolved = []
+            for item in cluster_map:
+                if item.get("cluster_index") == cluster:
+                    resolved.append(item.get("feature_index"))
+            indices = resolved
+
+        if indices is None or len(indices) == 0:
+            # Fallback: Apply to all channels along the resolved channel axis
+            indices = list(range(x.size(channel_dim)))
+        return torch.tensor(indices, dtype=torch.long, device=x.device)
+
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
         raise NotImplementedError
 
@@ -77,14 +95,16 @@ class ErodeKernel(BendingKernel):
     Kernel for morphological erosion.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"ErodeKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         radius = element.metadata.get("radius", 1)
-        indices = element.metadata.get("indices", [])
-        if not indices or x.ndim != 4:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         kernel_size = 2 * radius + 1
@@ -100,14 +120,16 @@ class DilateKernel(BendingKernel):
     Kernel for morphological dilation.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"DilateKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         radius = element.metadata.get("radius", 1)
-        indices = element.metadata.get("indices", [])
-        if not indices or x.ndim != 4:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         kernel_size = 2 * radius + 1
@@ -123,15 +145,17 @@ class TranslateKernel(BendingKernel):
     Kernel for 2D spatial translation.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"TranslateKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         offset_x = element.metadata.get("offset_x", 0.0)
         offset_y = element.metadata.get("offset_y", 0.0)
-        indices = element.metadata.get("indices", [])
-        if not indices or x.ndim != 4:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         theta = torch.tensor([
@@ -151,14 +175,16 @@ class ScaleKernel(BendingKernel):
     Kernel for 2D spatial scaling.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"ScaleKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         scale_factor = element.metadata.get("scale_factor", 1.0)
-        indices = element.metadata.get("indices", [])
-        if not indices or x.ndim != 4:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         inv_scale = 1.0 / (scale_factor + 1e-8)
@@ -179,14 +205,16 @@ class RotateKernel(BendingKernel):
     Kernel for 2D spatial rotation.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"RotateKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         angle = element.metadata.get("angle", 0.0)
-        indices = element.metadata.get("indices", [])
-        if not indices or x.ndim != 4:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         import math
@@ -210,10 +238,13 @@ class ResizeKernel(BendingKernel):
     Kernel for 2D spatial resizing.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                f"ResizeKernel expects a 4D spatial tensor (B, C, H, W), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         scale_x = element.metadata.get("scale_x", 1.0)
         scale_y = element.metadata.get("scale_y", 1.0)
-        if x.ndim != 4:
-            return x
 
         new_h = int(x.size(2) * scale_y)
         new_w = int(x.size(3) * scale_x)
@@ -222,6 +253,45 @@ class ResizeKernel(BendingKernel):
 
         return F.interpolate(x, size=(new_h, new_w), mode="bilinear", align_corners=False)
 
+    def __call__(self, x: Tensor, element, original_module) -> Tensor:
+        if not element.active:
+            return original_module(x)
+
+        base_output = original_module(x)
+        modified_output = self._apply_transform(base_output, element, original_module)
+
+        if base_output.shape != modified_output.shape:
+            # Check effective multiplier
+            multiplier = getattr(element, "multiplier", 1.0)
+            strength = getattr(element, "strength", 1.0)
+            effective_multiplier = multiplier * strength
+            if effective_multiplier != 1.0 and effective_multiplier != 0.0:
+                raise ValueError(
+                    f"ResizeKernel does not support shape changes (from {base_output.shape} to {modified_output.shape}) "
+                    f"when strength blending is active (strength/multiplier = {effective_multiplier}). "
+                    f"Blending requires identical spatial dimensions."
+                )
+
+        # Apply strength blending safely
+        multiplier = getattr(element, "multiplier", 1.0)
+        strength = getattr(element, "strength", 1.0)
+        effective_multiplier = multiplier * strength
+
+        if effective_multiplier == 1.0:
+            return modified_output
+        else:
+            return base_output
+
+    def forward_delta(self, x: Tensor, base_output: Tensor, element, original_module) -> Tensor:
+        modified_output = self._apply_transform(base_output, element, original_module)
+        if base_output.shape != modified_output.shape:
+            raise ValueError(
+                f"ResizeKernel does not support shape changes (from {base_output.shape} to {modified_output.shape}) "
+                f"during Hook injection or delta computation because they require identical spatial dimensions. "
+                f"Consider using 'graft' strategy with strength=1.0 instead."
+            )
+        return super().forward_delta(x, base_output, element, original_module)
+
 
 @register_kernel("flip-h")
 class FlipHorizontalKernel(BendingKernel):
@@ -229,13 +299,16 @@ class FlipHorizontalKernel(BendingKernel):
     Kernel for horizontal reflection.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
+        if x.ndim < 3:
+            raise ValueError(
+                f"FlipHorizontalKernel expects a tensor with at least 3 dimensions "
+                f"to resolve the spatial width axis (last dimension), "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         flipped = sliced.flip([-1])
@@ -250,13 +323,16 @@ class FlipVerticalKernel(BendingKernel):
     Kernel for vertical reflection.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
+        if x.ndim < 3:
+            raise ValueError(
+                f"FlipVerticalKernel expects a tensor with at least 3 dimensions "
+                f"to resolve the spatial height axis, "
+                f"but received a {x.ndim}D tensor of shape {x.shape}."
+            )
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         flip_dim = -2 if x.ndim >= 3 else -1
@@ -272,13 +348,10 @@ class InvertKernel(BendingKernel):
     Kernel for activation value inversion.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         inverted = 1.0 - sliced
@@ -294,13 +367,10 @@ class BinaryThresholdKernel(BendingKernel):
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
         threshold = element.metadata.get("threshold", 0.0)
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         threshed = (sliced > threshold).to(dtype=sliced.dtype)
@@ -316,13 +386,10 @@ class ScalarMultiplyKernel(BendingKernel):
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
         factor = element.metadata.get("factor", 1.0)
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         multiplied = sliced * factor
@@ -337,13 +404,10 @@ class AblateKernel(BendingKernel):
     Kernel for zeroing/ablating activations.
     """
     def _apply_transform(self, x: Tensor, element, original_module) -> Tensor:
-        indices = element.metadata.get("indices", [])
-        if not indices:
-            return x
-
         channel_dim = self._get_channel_dim(x, original_module)
+        idx_tensor = self._get_indices_tensor(x, element, channel_dim)
+
         x_mod = x.clone()
-        idx_tensor = torch.tensor(indices, dtype=torch.long, device=x.device)
         sliced = x.index_select(channel_dim, idx_tensor)
 
         ablated = sliced * 0.0
