@@ -41,8 +41,18 @@ class BendingKernel(Kernel):
         # Resolve indices dynamically if cluster and map are provided and indices is empty
         if (indices is None or len(indices) == 0) and cluster is not None and cluster_map is not None:
             resolved = []
+            try:
+                target_cluster = int(cluster)
+            except (ValueError, TypeError):
+                target_cluster = cluster
+                
             for item in cluster_map:
-                if item.get("cluster_index") == cluster:
+                item_cluster = item.get("cluster_index")
+                try:
+                    curr_cluster = int(item_cluster) if item_cluster is not None else None
+                except (ValueError, TypeError):
+                    curr_cluster = item_cluster
+                if curr_cluster == target_cluster:
                     resolved.append(item.get("feature_index"))
             indices = resolved
 
