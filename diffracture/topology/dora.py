@@ -10,7 +10,18 @@ class DoRAElement(Element):
     A data container for Weight-Decomposed Low-Rank Adaptation (DoRA) parameters.
     Stored in the Grating and utilized by the DoRAKernel.
     """
-    def __init__(self, address: str, rank: int, alpha: float, in_features: int, out_features: int, kernel_size: tuple = None):
+    def __init__(
+        self,
+        address: str,
+        rank: int,
+        alpha: float,
+        in_features: int,
+        out_features: int,
+        kernel_size: tuple = None,
+        param: str = "weight",
+        layout: dict = None,
+        reference_scale: float = 1.0
+    ):
         super().__init__(address, kernel_type="dora")
         
         self.metadata.update({
@@ -18,7 +29,10 @@ class DoRAElement(Element):
             "alpha": alpha,
             "in_features": in_features,
             "out_features": out_features,
-            "kernel_size": kernel_size
+            "kernel_size": kernel_size,
+            "param": param,
+            "layout": layout,
+            "reference_scale": reference_scale
         })
 
         if kernel_size:
@@ -42,5 +56,8 @@ class DoRAElement(Element):
             alpha=metadata["alpha"],
             in_features=metadata["in_features"],
             out_features=metadata["out_features"],
-            kernel_size=metadata.get("kernel_size")
+            kernel_size=metadata.get("kernel_size"),
+            param=metadata.get("param") or "weight",
+            layout=metadata.get("layout"),
+            reference_scale=metadata.get("reference_scale", 1.0)
         )

@@ -45,7 +45,7 @@ class GraftInjector(Injector):
 
             # The Kernel dictates whether it supports this module
             kernel = grating.get_kernel(element.kernel_type)
-            if not kernel.is_supported(original_module):
+            if not kernel.supports_activation(original_module, element):
                 print(f"Warning: Kernel '{element.kernel_type}' does not support {type(original_module)} at {address}. Skipping.")
                 continue
 

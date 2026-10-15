@@ -24,6 +24,21 @@ class Kernel:
         """Returns True if the kernel can operate on the given module."""
         raise NotImplementedError
 
+    def supports_activation(self, original_module: nn.Module, element: Element) -> bool:
+        """
+        Returns True if forward_delta / __call__ are valid for this element on this module, i.e. the
+        kernel knows the module's forward well enough to work in activation space (hooks, grafts).
+        """
+        return self.is_supported(original_module)
+
+    def supports_weights(self, original_module: nn.Module, element: Element) -> bool:
+        """
+        Returns True if compute_delta is valid for this element on this module. Weight-space kernels
+        need nothing from the module but the tensor they modify, so they apply to any module whose
+        forward reads that tensor (parametrization, direct merges).
+        """
+        return False
+
     def compute_delta(self, element: Element) -> Tensor:
         """Required for the DirectInjector / merging logic."""
         raise NotImplementedError
