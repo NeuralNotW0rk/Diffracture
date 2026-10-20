@@ -7,7 +7,7 @@ name = "diffracture"
 version = "0.1.0"
 description = "A modular PyTorch library for injecting low-rank adapters and network-bending transforms into trained models."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 dependencies = [
     "torch>=2.0.0",

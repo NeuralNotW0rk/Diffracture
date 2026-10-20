@@ -30,6 +30,7 @@ Each concern can be swapped independently. The same LoRA file can be grafted for
 - [Extending Diffracture](#extending-diffracture)
 - [Scripts and tests](#scripts-and-tests)
 - [Known limitations](#known-limitations)
+- [Related projects](#related-projects)
 - [Acknowledgements and prior work](#acknowledgements-and-prior-work)
 - [License](#license)
 
@@ -51,7 +52,7 @@ cd Diffracture
 pip install -e .
 ```
 
-**Requirements:** Python ≥ 3.9, PyTorch ≥ 2.0, `safetensors`, and `torchvision`.
+**Requirements:** Python 3.10 (the only version tested so far), PyTorch ≥ 2.0, `safetensors`, and `torchvision`.
 
 ---
 
@@ -341,6 +342,13 @@ python scripts/test_bending.py
 - **`resize`** changes the activation shape. It ignores `indices`, and it only works with `graft` at full strength.
 - **No automatic strategy selection yet.** Kernel `traits` are intended to drive a future `injection_strategy="auto"`.
 - Injectors currently report progress with `print`.
+
+---
+
+## Related projects
+
+- [StemmA2A](https://github.com/NeuralNotW0rk/StemmA2A): a desktop workbench for generative audio and image models. It uses Diffracture gratings for network bending and for evolved LoRA genomes.
+- [Neutral Selection](https://github.com/NeuralNotW0rk/NeutralSelection): a typed, composable evolutionary-computation framework, used alongside Diffracture to evolve LoRA gratings.
 
 ---
 
